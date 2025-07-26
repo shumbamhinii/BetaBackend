@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
-import pool from '../db/index.js';
+import pool from '../db/index';
+
 
 export const getTransactions = async (req: Request, res: Response): Promise<void> => {
   try {
