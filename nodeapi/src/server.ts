@@ -4100,4 +4100,4 @@ string, disclaimerText: string | null = null) => {
 app.get('/', (req, res) => {
   res.send('API running...');
 });
-
+export default app;
