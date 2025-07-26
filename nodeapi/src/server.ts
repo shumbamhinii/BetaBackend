@@ -2,10 +2,11 @@ import express from 'express';
 import cors from 'cors';
 import { Pool } from 'pg';
 import multer from 'multer';
+import { VercelRequest, VercelResponse } from '@vercel/node';
 /* import { v4 as uuidv4 } from 'uuid'; */ // Not used in this version
 
 const app = express();
-const PORT = 3000;
+
 const PDFDocument = require('pdfkit'); // For PDF generation
 
 app.use(cors()); // Enable CORS for all routes
@@ -4096,7 +4097,7 @@ string, disclaimerText: string | null = null) => {
 
 
 
-app.listen(PORT, () => {
-  console.log(`Node server running on http://localhost:${PORT}`);
+app.get('/', (req, res) => {
+  res.send('API running...');
 });
 
