@@ -1,0 +1,1087 @@
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  Mic,
+  Paperclip, // Using Paperclip for file attachment icon
+  Send,
+  Upload, // Still useful for the actual upload button within the bubble
+  StopCircle,
+  Trash2,
+  CheckCircle,
+  XCircle,
+  Edit3,
+  FileText,
+  Play, // Ensure this is correctly imported
+} from 'lucide-react';
+import { motion } from 'framer-motion';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Button } from '@/components/ui/button';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Header } from '@/components/layout/Header';
+
+export default function App() {
+  return (
+    <div className="flex flex-col h-screen bg-gray-50">
+      <Header title="Import Financials (Chat Mode)" />
+      <ChatInterface />
+    </div>
+  );
+}
+
+// --- New Component: EditableTransactionTable ---
+// This component is now responsible for rendering the editable table
+// It receives initial transactions and callbacks for confirm/cancel
+const EditableTransactionTable = ({ transactions: initialTransactions, accounts, categories, onConfirm, onCancel }) => {
+  const [transactions, setTransactions] = useState(initialTransactions);
+  const [editingRowId, setEditingRowId] = useState(null);
+
+  // Function to handle changes in the transaction table
+  const handleTransactionChange = (id, field, value) => {
+    setTransactions(prevData =>
+      prevData.map(tx =>
+        tx.id === id ? { ...tx, [field]: value } : tx
+      )
+    );
+  };
+
+  return (
+    <div className="p-4 bg-white rounded-lg shadow-md">
+      <h4 className="text-lg font-semibold mb-3">Review & Edit Transactions:</h4>
+      <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Type</TableHead>
+              <TableHead>Amount (R)</TableHead>
+              <TableHead>Description</TableHead>
+              <TableHead>Date</TableHead>
+              <TableHead>Category</TableHead>
+              <TableHead>Account</TableHead>
+              <TableHead>Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {transactions.map((transaction) => (
+              <TableRow key={transaction.id}>
+                <TableCell>
+                  {editingRowId === transaction.id ? (
+                    <Select
+                      value={transaction.type}
+                      onValueChange={(value) => handleTransactionChange(transaction.id, 'type', value)}
+                    >
+                      <SelectTrigger className="w-[100px]">
+                        <SelectValue placeholder="Type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="income">Income</SelectItem>
+                        <SelectItem value="expense">Expense</SelectItem>
+                        <SelectItem value="debt">Debt</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    transaction.type
+                  )}
+                </TableCell>
+                <TableCell>
+                  {editingRowId === transaction.id ? (
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={transaction.amount}
+                      onChange={(e) => handleTransactionChange(transaction.id, 'amount', e.target.value)}
+                      className="w-[100px]"
+                    />
+                  ) : (
+                    parseFloat(transaction.amount).toFixed(2)
+                  )}
+                </TableCell>
+                <TableCell className="max-w-[200px] truncate">
+                  {editingRowId === transaction.id ? (
+                    <Textarea
+                      value={transaction.description}
+                      onChange={(e) => handleTransactionChange(transaction.id, 'description', e.target.value)}
+                      rows="2"
+                      className="w-[200px]"
+                    />
+                  ) : (
+                    transaction.description
+                  )}
+                </TableCell>
+                <TableCell>
+                  {editingRowId === transaction.id ? (
+                    <Input
+                      type="date"
+                      value={transaction.date}
+                      onChange={(e) => handleTransactionChange(transaction.id, 'date', e.target.value)}
+                      className="w-[150px]"
+                    />
+                  ) : (
+                    transaction.date
+                  )}
+                </TableCell>
+                <TableCell>
+                  {editingRowId === transaction.id ? (
+                    <Select
+                      value={transaction.category}
+                      onValueChange={(value) => handleTransactionChange(transaction.id, 'category', value)}
+                    >
+                      <SelectTrigger className="w-[150px]">
+                        <SelectValue placeholder="Category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {categories.map((cat) => (
+                          <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    transaction.category
+                  )}
+                </TableCell>
+                <TableCell>
+                  {editingRowId === transaction.id ? (
+                    <Select
+                      value={transaction.account_id}
+                      onValueChange={(value) => handleTransactionChange(transaction.id, 'account_id', value)}
+                    >
+                      <SelectTrigger className="w-[150px]">
+                        <SelectValue placeholder="Account" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {accounts.map((account) => (
+                          <SelectItem key={account.id} value={String(account.id)}>{account.name} ({account.type})</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    accounts.find(acc => String(acc.id) === String(transaction.account_id))?.name || 'N/A'
+                  )}
+                </TableCell>
+                <TableCell className="flex space-x-2">
+                  {editingRowId === transaction.id ? (
+                    <>
+                      <Button variant="outline" size="sm" onClick={() => setEditingRowId(null)} className="flex items-center">
+                        <XCircle size={16} className="mr-1" /> Cancel
+                      </Button>
+                      <Button size="sm" onClick={() => setEditingRowId(null)} className="flex items-center">
+                        <CheckCircle size={16} className="mr-1" /> Save
+                      </Button>
+                    </>
+                  ) : (
+                    <Button variant="outline" size="sm" onClick={() => setEditingRowId(transaction.id)} className="flex items-center">
+                      <Edit3 size={16} className="mr-1" /> Edit
+                    </Button>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+      <div className="flex justify-end space-x-4 mt-4">
+        <Button variant="secondary" onClick={onCancel}>
+          <XCircle size={18} className="mr-2" /> Cancel Review
+        </Button>
+        <Button onClick={() => onConfirm(transactions)}>
+          <CheckCircle size={18} className="mr-2" /> Confirm & Submit All
+        </Button>
+      </div>
+    </div>
+  );
+};
+
+
+// --- Main ChatInterface Component ---
+const ChatInterface = () => {
+  const RAIRO_API_BASE_URL = 'https://rairo-stmt-api.hf.space';
+  const API_BASE_URL = 'http://localhost:3000';
+
+  const [messages, setMessages] = useState([]);
+  const [accounts, setAccounts] = useState([]);
+  const [typedDescription, setTypedDescription] = useState('');
+  const [file, setFile] = useState(null); // Stores the actual file object
+  const [isRecording, setIsRecording] = useState(false);
+  const [audioBlob, setAudioBlob] = useState(null);
+  const [audioUrl, setAudioUrl] = useState(null);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  const audioPlayerRef = useRef(null);
+  const chatContainerRef = useRef(null);
+
+  const [showProcessedTransactionReview, setShowProcessedTransactionReview] = useState(false);
+  const [processedTransactionData, setProcessedTransactionData] = useState([]);
+
+  const [showDocumentGeneration, setShowDocumentGeneration] = useState(false);
+  const [selectedDocumentType, setSelectedDocumentType] = useState('');
+  const [documentStartDate, setDocumentStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [documentEndDate, setDocumentEndDate] = useState(new Date().toISOString().split('T')[0]);
+
+  // New state for loading accounts
+  const [isLoadingAccounts, setIsLoadingAccounts] = useState(true);
+
+  const categories = [
+    'Groceries', 'Rent', 'Utilities', 'Transport', 'Food', 'Salary', 'Deposit',
+    'Loan', 'Debt Payment', 'Entertainment', 'Shopping', 'Healthcare', 'Education',
+    'Travel', 'Investments', 'Insurance', 'Bills', 'Dining Out', 'Subscriptions', 'Other',
+    'Sales', 'Interest Income', 'Cost of Goods Sold', 'Accounts Payable', 'Rent Expense',
+    'Utilities Expenses', 'Car Loans', 'Sales Revenue', 'General Expense', 'Fees', 'Purchases', 'Refund',
+    'Fuel', 'Salaries and wages', 'Projects Expenses', 'Accounting fees', 'Repairs & Maintenance',
+    'Water and electricity', 'Bank charges', 'Insurance' // Added new categories from API
+  ];
+
+  // Scroll to bottom of chat messages when new message arrives
+  useEffect(() => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
+  }, [messages]);
+
+  useEffect(() => {
+    return () => {
+      if (audioUrl) {
+        URL.revokeObjectURL(audioUrl);
+      }
+    };
+  }, [audioUrl]);
+
+  useEffect(() => {
+    const fetchAccounts = async () => {
+      setIsLoadingAccounts(true); // Start loading
+      try {
+        const response = await fetch(`${API_BASE_URL}/accounts`);
+        const data = await response.json();
+        setAccounts(data);
+        addAssistantMessage('Accounts loaded successfully. You can now import transactions.');
+      } catch (error) {
+        console.error('Failed to fetch accounts', error);
+        addAssistantMessage('Failed to load accounts. Please ensure your backend server is running at `http://localhost:3000`.');
+      } finally {
+        setIsLoadingAccounts(false); // End loading
+      }
+    };
+    fetchAccounts();
+  }, []);
+
+  const addMessage = (sender, content) => {
+    // Ensure unique key for messages
+    setMessages(prev => [...prev, { id: `${Date.now()}-${Math.random()}`, sender, content }]);
+  };
+
+  const addAssistantMessage = (content) => {
+    setMessages(prev => [...prev, { id: `${Date.now()}-${Math.random()}`, sender: 'assistant', content }]);
+  };
+
+  const addUserMessage = (content) => {
+    setMessages(prev => [...prev, { id: `${Date.now()}-${Math.random()}`, sender: 'user', content }]);
+  };
+
+/**
+ * Suggests the best matching account based on transaction details and available accounts.
+ * Prioritizes specific keyword matches within category and description, then falls back to type.
+ * @param {object} transaction - The transaction object (type, category, description).
+ * @param {Array} accounts - The list of available accounts from the database (id, name, type, code).
+ * @returns {string|null} The suggested account ID as a string, or null if no suggestion.
+ */
+const suggestAccount = (transaction, accounts) => {
+  if (!accounts || accounts.length === 0) return null;
+
+  // Helper: safely lowercase text
+  const safeText = (txt?: string | null) => (txt ? txt.toLowerCase() : '');
+
+  // Helper: safely check if any keyword exists in text
+  const includesAny = (text: string, keywords: string[]) =>
+    keywords.some(keyword => text.includes(keyword));
+
+  // Extract safe, lowercased fields for matching
+  const lowerTransactionType = safeText(transaction.type);
+  const lowerCategory = safeText(transaction.category);
+  const lowerDescription = safeText(transaction.description);
+
+  // Helper to find an account by name keywords and optional type
+  const findAccountByName = (nameKeywords: string[], accountType?: string) => {
+    return accounts.find(acc => {
+      const lowerAccName = safeText(acc.name);
+      const typeMatch = accountType ? safeText(acc.type) === safeText(accountType) : true;
+      return typeMatch && includesAny(lowerAccName, nameKeywords);
+    });
+  };
+
+  // --- 1. Direct Category/Description to Account Name Matches (Highest Priority) ---
+
+  // Expenses
+  if (lowerTransactionType === 'expense') {
+    if (includesAny(lowerCategory, ['fuel']) || includesAny(lowerDescription, ['fuel', 'petrol'])) {
+      const acc = findAccountByName(['fuel expense'], 'expense');
+      if (acc) return String(acc.id);
+    }
+    if (includesAny(lowerCategory, ['salaries and wages']) || includesAny(lowerDescription, ['salary', 'wages', 'payroll'])) {
+      const acc = findAccountByName(['salaries and wages expense'], 'expense');
+      if (acc) return String(acc.id);
+    }
+    if (includesAny(lowerCategory, ['projects expenses']) || includesAny(lowerDescription, ['project', 'materials', 'contractor'])) {
+      const acc = findAccountByName(['projects expenses'], 'expense');
+      if (acc) return String(acc.id);
+    }
+    if (includesAny(lowerCategory, ['accounting fees']) || includesAny(lowerDescription, ['accountant', 'audit', 'tax fee'])) {
+      const acc = findAccountByName(['accounting fees expense'], 'expense');
+      if (acc) return String(acc.id);
+    }
+    if (includesAny(lowerCategory, ['repairs & maintenance']) || includesAny(lowerDescription, ['repair', 'maintenance', 'fix', 'electrician'])) {
+      const acc = findAccountByName(['repairs & maintenance expense'], 'expense');
+      if (acc) return String(acc.id);
+    }
+    if (includesAny(lowerCategory, ['water and electricity']) || includesAny(lowerDescription, ['electricity', 'water bill', 'utilities'])) {
+      const acc = findAccountByName(['water and electricity expense'], 'expense');
+      if (acc) return String(acc.id);
+    }
+    if (includesAny(lowerCategory, ['bank charges']) || includesAny(lowerDescription, ['bank charge', 'service fee', 'card fee'])) {
+      const acc = findAccountByName(['bank charges & fees'], 'expense');
+      if (acc) return String(acc.id);
+    }
+    if (includesAny(lowerCategory, ['insurance']) || includesAny(lowerDescription, ['insurance', 'policy'])) {
+      const acc = findAccountByName(['insurance expense'], 'expense');
+      if (acc) return String(acc.id);
+    }
+    // Specific check for 'Other expenses' to map to 'Miscellaneous Expense'
+    if (includesAny(lowerCategory, ['other expenses']) || includesAny(lowerDescription, ['misc', 'sundries', 'general expense'])) {
+      const acc = findAccountByName(['miscellaneous expense'], 'expense'); // Prioritize 'Miscellaneous Expense'
+      if (acc) return String(acc.id);
+    }
+    // General 'Other expenses' or 'Miscellaneous' - Ensure this is checked AFTER more specific ones
+    if (includesAny(lowerCategory, ['miscellaneous']) || includesAny(lowerDescription, ['misc', 'sundries', 'general expense'])) {
+        const acc = findAccountByName(['miscellaneous expense', 'general expense', 'other expenses'], 'expense');
+        if (acc) return String(acc.id);
+    }
+    // Broader expense categories (keep these lower in priority than specific ones)
+    if (includesAny(lowerCategory, ['rent']) || includesAny(lowerDescription, ['rent', 'rental'])) {
+      const acc = findAccountByName(['rent expense'], 'expense');
+      if (acc) return String(acc.id);
+    }
+    if (includesAny(lowerCategory, ['cost of goods sold', 'cogs']) || includesAny(lowerDescription, ['cost of goods sold', 'cogs', 'purchases'])) {
+      // This is often for inventory purchases, not general expenses like fuel.
+      // Ensure specific expense accounts are checked before this.
+      const acc = findAccountByName(['cost of goods sold'], 'expense');
+      if (acc) return String(acc.id);
+    }
+  }
+
+  // Income
+  if (lowerTransactionType === 'income') {
+    if (includesAny(lowerCategory, ['sales', 'revenue']) || includesAny(lowerDescription, ['sale', 'revenue', 'customer payment'])) {
+      const acc = findAccountByName(['sales revenue'], 'income');
+      if (acc) return String(acc.id);
+    }
+    if (includesAny(lowerCategory, ['interest income']) || includesAny(lowerDescription, ['interest received', 'interest income'])) {
+      const acc = findAccountByName(['interest income'], 'income');
+      if (acc) return String(acc.id);
+    }
+    // For generic 'income' or 'general income' from API, try to map to 'Other Income' if available
+    if (includesAny(lowerCategory, ['income', 'general income']) || includesAny(lowerDescription, ['transfer from', 'deposit'])) {
+      const acc = findAccountByName(['other income'], 'income');
+      if (acc) return String(acc.id);
+    }
+  }
+
+  // Debt/Liability
+  if (lowerTransactionType === 'debt') {
+    if (includesAny(lowerCategory, ['car loans', 'loan repayment']) || includesAny(lowerDescription, ['car loan', 'vehicle finance'])) {
+      const acc = findAccountByName(['car loans'], 'liability');
+      if (acc) return String(acc.id);
+    }
+    if (includesAny(lowerCategory, ['loan', 'debt']) || includesAny(lowerDescription, ['loan', 'debt', 'borrow'])) {
+      const acc = findAccountByName(['loan payable', 'long-term loan payable', 'short-term loan payable'], 'liability');
+      if (acc) return String(acc.id);
+    }
+    if (includesAny(lowerCategory, ['accounts payable']) || includesAny(lowerDescription, ['payable', 'creditor'])) {
+      const acc = findAccountByName(['accounts payable'], 'liability');
+      if (acc) return String(acc.id);
+    }
+  }
+
+  // Assets (for transfers, deposits, or asset purchases) - These rules are for the *other side* of a transaction
+  // e.g., if an income transaction increases a bank account, or an expense decreases it.
+  // The 'type' of the account (Asset) is distinct from the 'type' of the transaction (income/expense).
+  if (includesAny(lowerCategory, ['bank', 'cash', 'deposit']) || includesAny(lowerDescription, ['bank', 'cash', 'deposit', 'transfer'])) {
+    const acc = findAccountByName(['bank account', 'cash'], 'asset');
+    if (acc) return String(acc.id);
+  }
+  if (includesAny(lowerCategory, ['equipment', 'property', 'asset purchase']) || includesAny(lowerDescription, ['equipment', 'machinery', 'property', 'asset purchase'])) {
+    const acc = findAccountByName(['equipment', 'property, plant and equipment'], 'asset');
+    if (acc) return String(acc.id);
+  }
+  if (includesAny(lowerCategory, ['accounts receivable']) || includesAny(lowerDescription, ['invoice payment received', 'customer payment'])) {
+    const acc = findAccountByName(['accounts receivable'], 'asset');
+    if (acc) return String(acc.id);
+  }
+
+  // --- 2. Fallback to General Account Types ---
+  // If specific matches fail, try to match broadly by transaction type to account type
+  if (lowerTransactionType === 'income') {
+    const acc = accounts.find(acc => safeText(acc.type) === 'income');
+    if (acc) return String(acc.id);
+  }
+  if (lowerTransactionType === 'expense') {
+    const acc = accounts.find(acc => safeText(acc.type) === 'expense');
+    if (acc) return String(acc.id);
+  }
+  if (lowerTransactionType === 'debt') {
+    const acc = accounts.find(acc => safeText(acc.type) === 'liability');
+    if (acc) return String(acc.id);
+  }
+
+  // --- 3. Final Fallback: General Bank Account or first available account ---
+  const defaultBank = findAccountByName(['bank account'], 'asset');
+  if (defaultBank) return String(defaultBank.id);
+
+  const defaultCash = findAccountByName(['cash'], 'asset');
+  if (defaultCash) return String(defaultCash.id);
+
+  // As a very last resort, return the ID of the first account in the list
+  // This assumes there's always at least one account, e.g., a default bank account.
+  return accounts.length > 0 ? String(accounts[0].id) : null;
+};
+
+
+  const submitTransaction = async (dataToSubmit) => {
+  // ✅ Ensure mandatory fields and include `id` if present
+  const payload = {
+    id: dataToSubmit.id || undefined, // <-- include ID for updates
+    type: dataToSubmit.type || "expense",
+    amount: dataToSubmit.amount ? parseFloat(dataToSubmit.amount) : 0,
+    date: dataToSubmit.date || new Date().toISOString().split("T")[0],
+    description: dataToSubmit.description || "Imported Transaction",
+    category: dataToSubmit.category || "Uncategorized",
+    account_id:
+      dataToSubmit.account_id ||
+      String(accounts[0]?.id || null), // fallback to first account if not mapped
+    original_text: dataToSubmit.original_text || null, // Added
+    source: dataToSubmit.source || 'manual', // Added
+    confirmed: dataToSubmit.confirmed !== undefined ? dataToSubmit.confirmed : true // Added
+  };
+
+  console.log("Submitting transaction data:", payload);
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/transactions/manual`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    const result = await response.json();
+
+    if (response.ok) {
+      return { success: true, transaction: result };
+    } else {
+      console.error("Submission error details:", result);
+      return { success: false, error: result.detail || "Failed to submit transaction" };
+    }
+  } catch (error) {
+    console.error("Error submitting transaction:", error);
+    return { success: false, error: error.message || "Network error or server unavailable." };
+  }
+};
+
+
+// ✅ Handle File Selection
+const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const selectedFile = e.target.files?.[0] || null;
+
+  if (!selectedFile) {
+    addAssistantMessage("No file selected.");
+    return;
+  }
+
+  if (selectedFile.type !== "application/pdf") {
+    addAssistantMessage("Only PDF files are supported.");
+    e.target.value = ""; // Reset input so user can pick again
+    return;
+  }
+
+  setFile(selectedFile);
+  setTypedDescription(`File: ${selectedFile.name}`);
+
+  // ✅ Reset input value to allow re-selecting the same file
+  e.target.value = "";
+};
+  const handleFileUpload = async () => {
+    if (!file) {
+      addAssistantMessage('No file selected for upload.');
+      return;
+    }
+
+    if (file.type !== 'application/pdf') {
+      addAssistantMessage('Only PDF files are supported for processing.');
+      setFile(null); // Clear file if invalid type
+      setTypedDescription(''); // Clear input
+      return;
+      }
+
+    addUserMessage(`Initiating PDF upload: ${file.name}...`); // User confirms upload
+    addAssistantMessage(`Processing PDF: ${file.name}...`);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch(`${RAIRO_API_BASE_URL}/process-pdf`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      const result = await response.json();
+      console.log('API Response for PDF:', result);
+
+      if (response.ok) {
+        addAssistantMessage('PDF processed successfully! Please review the extracted transactions.');
+        
+        const transformedTransactions = result.transactions.map((tx, idx) => {
+          const transactionType = tx.Type?.toLowerCase() || "expense"; // Default to expense if type is missing
+          let transactionCategory = tx.Destination_of_funds || "Uncategorized";
+
+          // Refine category for income types if it's generic
+          if (transactionType === 'income' && ['income', 'general income'].includes(transactionCategory.toLowerCase())) {
+            transactionCategory = 'Sales Revenue'; // Or another appropriate default income category
+          }
+
+          const transaction = {
+            id: `pdf-${idx}-${Date.now()}`,
+            type: transactionType,
+            amount: tx.Amount ? String(tx.Amount) : "0",
+            description: tx.Description || "Imported Transaction",
+            date: tx.Date
+              ? new Date(tx.Date.split('/').reverse().join('-')).toISOString().split('T')[0]
+              : new Date().toISOString().split('T')[0],
+            category: transactionCategory, // Use the refined category
+            account_id: suggestAccount({ type: transactionType, category: transactionCategory, description: tx.Description }, accounts) || String(accounts[0]?.id || ""),
+            original_text: tx.Original_Text || (tx.Description || "Imported Transaction"), // Use description as original text if not provided
+            source: 'pdf-upload', // Set source for PDF imports
+            confirmed: true, // Default to true upon import
+          };
+
+          // Pass the current accounts state to suggestAccount
+          transaction.account_id = suggestAccount(transaction, accounts);
+          return transaction;
+        });
+        // Render the EditableTransactionTable directly in the chat
+        addAssistantMessage(
+          <EditableTransactionTable
+            transactions={transformedTransactions}
+            accounts={accounts}
+            categories={categories}
+            onConfirm={handleConfirmProcessedTransaction}
+            onCancel={() => {
+              addAssistantMessage('Transaction review cancelled.');
+            }}
+          />
+        );
+
+      } else {
+        const errorMessage = `Error processing file: ${result.error || 'Unknown error'}`;
+        addAssistantMessage(errorMessage);
+      }
+    } catch (error) {
+      const errorMessage = `Network error during file upload: ${error.message || 'API is unavailable.'}`;
+      console.error('Network error during file upload:', error);
+      addAssistantMessage(errorMessage);
+    } finally {
+      setFile(null); // Clear the file object after processing
+      setTypedDescription(''); // Clear input field after sending
+    }
+  };
+
+  const handleTypedDescriptionSubmit = async () => {
+    if (!typedDescription.trim()) {
+      addAssistantMessage('Please enter a description.');
+      return;
+    }
+
+    const userMessageContent = typedDescription;
+    addUserMessage(userMessageContent);
+    addAssistantMessage('Analyzing description...');
+    setTypedDescription(''); // Clear input immediately
+
+    try {
+      const response = await fetch(`${RAIRO_API_BASE_URL}/process-text`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ text: userMessageContent }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        addAssistantMessage('Description analyzed successfully! Please review the extracted transactions.');
+        
+        const transformedTransactions = result.transactions.map((tx, idx) => {
+          const transactionType = tx.Type?.toLowerCase() || "expense"; // Default to expense if type is missing
+          let transactionCategory = tx.Destination_of_funds || "Uncategorized";
+
+          // Refine category for income types if it's generic
+          if (transactionType === 'income' && ['income', 'general income'].includes(transactionCategory.toLowerCase())) {
+            transactionCategory = 'Sales Revenue'; // Or another appropriate default income category
+          }
+
+          return {
+            id: tx.id || `pdf-${idx}-${Date.now()}`,  // ✅ keep ID if backend already provided it
+            type: transactionType,
+            amount: tx.Amount ? String(tx.Amount) : "0",
+            description: tx.Description || "Imported Transaction",
+            date: tx.Date
+              ? new Date(tx.Date.split("/").reverse().join("-")).toISOString().split("T")[0]
+              : new Date().toISOString().split("T")[0],
+            category: transactionCategory, // Use the refined category
+            account_id: suggestAccount({ type: transactionType, category: transactionCategory, description: tx.Description }, accounts) || String(accounts[0]?.id || ""),
+            original_text: userMessageContent, // Original text is the user's typed description
+            source: 'text-input', // Set source for text input
+            confirmed: true, // Default to true upon import
+          };
+        });
+
+        // Render the EditableTransactionTable directly in the chat
+        addAssistantMessage(
+          <EditableTransactionTable
+            transactions={transformedTransactions}
+            accounts={accounts}
+            categories={categories}
+            onConfirm={handleConfirmProcessedTransaction}
+            onCancel={() => {
+              addAssistantMessage('Transaction review cancelled.');
+            }}
+          />
+        );
+
+      } else {
+        const errorMessage = `Error analyzing description: ${result.error || 'Unknown error'}`;
+        addAssistantMessage(errorMessage);
+      }
+    } catch (error) {
+      const errorMessage = `Network error during text processing: ${error.message || 'API is unavailable.'}`;
+      console.error('Network error during text processing:', error);
+      addAssistantMessage(errorMessage);
+    }
+  };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorderRef.current = new MediaRecorder(stream);
+      audioChunksRef.current = [];
+
+      mediaRecorderRef.current.ondataavailable = (event) => {
+        audioChunksRef.current.push(event.data);
+      };
+
+      mediaRecorderRef.current.onstop = () => {
+        const blob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
+        setAudioBlob(blob);
+        setAudioUrl(URL.createObjectURL(blob));
+        if (audioPlayerRef.current) {
+          audioPlayerRef.current.src = ''; // Clear src after recording stops
+          audioPlayerRef.current.load(); // Load the new blob
+          audioPlayerRef.current.src = URL.createObjectURL(blob); // Set src again to play
+        }
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorderRef.current.start();
+      setIsRecording(true);
+      addUserMessage('Started audio recording...');
+    } catch (err) {
+      console.error('Error accessing microphone:', err);
+      addAssistantMessage('Failed to access microphone. Please check permissions.');
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      addUserMessage('Stopped audio recording.');
+    }
+  };
+
+  const uploadAudio = async () => {
+    if (!audioBlob) {
+      addAssistantMessage('No audio recorded to upload.');
+      return;
+    }
+
+    addUserMessage('Processing recorded audio...');
+    
+    try {
+      const simulatedTranscribedText = "I paid fifty dollars for groceries on July fifth, two thousand twenty-five. I also received 1200 salary on the same day.";
+      
+      const processTextResponse = await fetch(`${RAIRO_API_BASE_URL}/process-text`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ text: simulatedTranscribedText }),
+      });
+      const result = await processTextResponse.json();
+
+      if (processTextResponse.ok) {
+        addAssistantMessage('Audio processed successfully! Please review the extracted transactions.');
+        
+        const transformedTransactions = result.transactions.map((tx, idx) => {
+          const transactionType = tx.Type === 'income' ? 'income' : 'expense';
+          let transactionCategory = tx.Destination_of_funds;
+
+          // Refine category for income types if it's generic
+          if (transactionType === 'income' && ['income', 'general income'].includes(transactionCategory?.toLowerCase())) {
+            transactionCategory = 'Sales Revenue'; // Or another appropriate default income category
+          }
+
+          return {
+            id: `audio-${idx}-${Date.now()}`, // Ensure unique ID for transactions
+            type: transactionType,
+            amount: String(tx.Amount),
+            description: tx.Description,
+            date: new Date(tx.Date.split('/').reverse().join('-')).toISOString().split('T')[0],
+            category: transactionCategory, // Use the refined category
+            account_id: suggestAccount({ type: transactionType, category: transactionCategory, description: tx.Description }, accounts) || String(accounts[0]?.id || ""),
+            original_text: simulatedTranscribedText, // Original text is the transcribed audio
+            source: 'audio-input', // Set source for audio input
+            confirmed: true, // Default to true upon import
+          };
+        });
+        // Render the EditableTransactionTable directly in the chat
+        addAssistantMessage(
+          <EditableTransactionTable
+            transactions={transformedTransactions}
+            accounts={accounts}
+            categories={categories}
+            onConfirm={handleConfirmProcessedTransaction}
+            onCancel={() => {
+              addAssistantMessage('Transaction review cancelled.');
+            }}
+          />
+        );
+
+      } else {
+        const errorMessage = `Error processing audio: ${result.error || 'Unknown error'}`;
+        addAssistantMessage(errorMessage);
+      }
+    } catch (error) {
+      const errorMessage = `Network error during audio processing: ${error.message || 'API is unavailable.'}`;
+      console.error('Network error during audio processing:', error);
+      addAssistantMessage(errorMessage);
+    } finally {
+      setAudioBlob(null);
+      setAudioUrl(null);
+      if (audioPlayerRef.current) {
+        audioPlayerRef.current.src = '';
+      }
+    }
+  };
+
+  const clearAudio = () => {
+    setAudioBlob(null);
+    setAudioUrl(null);
+    if (audioPlayerRef.current) {
+      audioPlayerRef.current.src = '';
+    }
+    addAssistantMessage('Audio cleared.');
+  };
+
+const handleConfirmProcessedTransaction = async (transactionsToSave) => {
+  addAssistantMessage("Submitting transactions...");
+
+  const updatedTransactions = await Promise.all(
+    transactionsToSave.map(async (transaction) => {
+      const { success, transaction: savedTransaction } = await submitTransaction(transaction);
+      return success ? { ...transaction, id: savedTransaction.id } : transaction;
+    })
+  );
+
+  setProcessedTransactionData(updatedTransactions); // ✅ update table with new IDs
+
+  const allSuccessful = updatedTransactions.every((tx) => tx.id);
+  if (allSuccessful) {
+    addAssistantMessage(`Successfully submitted ${transactionsToSave.length} transactions.`);
+    setShowDocumentGeneration(true);
+  } else {
+    addAssistantMessage("Some transactions failed. Check console for details.");
+  }
+};
+
+  const handleGenerateFinancialDocument = () => {
+    if (!selectedDocumentType) {
+      addAssistantMessage('Please select a document type to generate.');
+      return;
+    }
+    if (!documentStartDate || !documentEndDate) {
+      addAssistantMessage('Please select both start and end dates for the document.');
+      return;
+    }
+
+    const downloadUrl = `${API_BASE_URL}/generate-financial-document?documentType=${selectedDocumentType}&startDate=${documentStartDate}&endDate=${documentEndDate}`;
+    
+    addUserMessage(`Please generate a ${selectedDocumentType} for the period ${documentStartDate} to ${documentEndDate}.`);
+    addAssistantMessage(
+      <div className="p-4 bg-blue-100 rounded-md shadow-sm">
+        <p className="font-semibold mb-2">Generating your financial document...</p>
+        <p className="text-sm">If the download does not start automatically, click the button below:</p>
+        <a
+          href={downloadUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-3 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          onClick={() => addAssistantMessage('Download initiated!')}
+        >
+          <FileText size={18} className="mr-2" /> Download {selectedDocumentType.replace('-', ' ').toUpperCase()}
+        </a>
+      </div>
+    );
+
+    setSelectedDocumentType('');
+    setDocumentStartDate(new Date().toISOString().split('T')[0]);
+    setDocumentEndDate(new Date().toISOString().split('T')[0]);
+    setShowDocumentGeneration(false);
+  };
+
+  // Unified send logic for the main input bar
+  const handleUnifiedSend = () => {
+    if (file) {
+      handleFileUpload();
+    } else if (typedDescription.trim()) {
+      // Check for commands like /audio, /text, /upload
+      if (typedDescription.startsWith('/audio')) {
+        addAssistantMessage("Please use the microphone icon to record audio, then click play to process.");
+        setTypedDescription('');
+      } else if (typedDescription.startsWith('/upload')) {
+        // This command doesn't directly trigger upload, it's just a hint
+        addAssistantMessage("Please use the paperclip icon to select a file, then click Send.");
+        setTypedDescription('');
+      } else if (typedDescription.startsWith('/text')) {
+        // Remove '/text' command from the description before sending to API
+        const textToProcess = typedDescription.substring('/text'.length).trim();
+        if (textToProcess) {
+          setTypedDescription(textToProcess); // Temporarily set for handleTypedDescriptionSubmit
+          handleTypedDescriptionSubmit();
+        } else {
+          addAssistantMessage("Please provide a description after '/text'.");
+          setTypedDescription('');
+        }
+      } else {
+        handleTypedDescriptionSubmit(); // Default to text analysis
+      }
+    } else {
+      // If nothing is typed and no file is selected, do nothing or show a message
+      addAssistantMessage("Please type a message or select a file to proceed.");
+    }
+  };
+
+
+  return (
+    <>
+      {/* Chat Messages Display Area */}
+      <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4">
+        {/* Loading message for accounts */}
+        {isLoadingAccounts && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+            className="flex justify-start"
+          >
+            <div className="max-w-[70%] p-3 rounded-2xl shadow-md bg-gray-200 text-gray-800">
+              Loading accounts...
+            </div>
+          </motion.div>
+        )}
+        {messages.map((msg) => (
+          <motion.div
+            key={msg.id} // Unique key for each message
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+            className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+          >
+            <div className={`max-w-[70%] p-3 rounded-2xl shadow-md ${msg.sender === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-800'}`}>
+              {/* Render JSX directly if it's an element, otherwise render string */}
+              {typeof msg.content === 'string' ? msg.content : msg.content}
+            </div>
+          </motion.div>
+        ))}
+
+        {/* Document Generation Section (appears after transactions are submitted) */}
+        {showDocumentGeneration && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="mt-8 p-6 bg-white rounded-xl shadow-lg border border-gray-200 self-center w-full max-w-md mx-auto"
+          >
+            <h3 className="text-xl font-bold text-gray-800 mb-4">Generate Financial Document</h3>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="documentType">Document Type</Label>
+                <Select
+                  id="documentType"
+                  value={selectedDocumentType}
+                  onValueChange={setSelectedDocumentType}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select Document Type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="income-statement">Income Statement</SelectItem>
+                    <SelectItem value="balance-sheet">Balance Sheet</SelectItem>
+                    <SelectItem value="trial-balance">Trial Balance</SelectItem>
+                    <SelectItem value="cash-flow-statement">Cash Flow Statement</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="documentStartDate">Start Date</Label>
+                  <Input
+                    type="date"
+                    id="documentStartDate"
+                    value={documentStartDate}
+                    onChange={(e) => setDocumentStartDate(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="documentEndDate">End Date</Label>
+                  <Input
+                    type="date"
+                    id="documentEndDate"
+                    value={documentEndDate}
+                    onChange={(e) => setDocumentEndDate(e.target.value)}
+                  />
+                </div>
+              </div>
+              <Button
+                onClick={handleGenerateFinancialDocument}
+                className="w-full inline-flex justify-center py-3 px-6 border border-transparent shadow-sm text-base font-medium rounded-md text-white bg-green-600 hover:bg-green-700"
+              >
+                <FileText size={18} className="mr-2" /> Generate Document
+              </Button>
+            </div>
+          </motion.div>
+        )}
+      </div>
+
+      {/* Chat Input Area */}
+      <div className="p-4 bg-white border-t shadow flex items-center space-x-2">
+        {/* File Upload Button */}
+        <label htmlFor="file-upload-input" className="cursor-pointer">
+          <Input
+            id="file-upload-input"
+            type="file"
+            className="sr-only"
+            onChange={handleFileChange}
+            accept=".pdf"
+            disabled={isLoadingAccounts} // Disable when loading accounts
+          />
+          <Button
+            asChild
+            variant="ghost"
+            className="rounded-full p-2 text-gray-600 hover:bg-gray-100"
+            aria-label="Attach File"
+            disabled={isLoadingAccounts} // Disable when loading accounts
+          >
+          <span>
+          <Paperclip size={20} className="text-gray-600" />
+          </span>
+          </Button>
+        </label>
+
+        {/* Audio Recording Buttons */}
+        {isRecording ? (
+          <Button
+            onClick={stopRecording}
+            variant="ghost"
+            className="rounded-full p-2 text-red-500 hover:bg-red-100 animate-pulse"
+            aria-label="Stop Recording"
+            disabled={isLoadingAccounts} // Disable when loading accounts
+          >
+            <StopCircle size={20} />
+          </Button>
+        ) : (
+          <Button
+            onClick={startRecording}
+            variant="ghost"
+            className="rounded-full p-2 text-purple-600 hover:bg-purple-100"
+            aria-label="Start Recording"
+            disabled={isLoadingAccounts} // Disable when loading accounts
+          >
+            <Mic size={20} />
+          </Button>
+        )}
+        {audioUrl && (
+          <>
+            <audio ref={audioPlayerRef} src={audioUrl} controls className="hidden"></audio>
+            <Button
+              onClick={uploadAudio}
+              variant="ghost"
+              className="rounded-full p-2 text-green-600 hover:bg-green-100"
+              aria-label="Process Audio"
+              disabled={isLoadingAccounts} // Disable when loading accounts
+            >
+              <Play size={20} />
+            </Button>
+            <Button
+              onClick={clearAudio}
+              variant="ghost"
+              className="rounded-full p-2 text-gray-600 hover:bg-gray-100"
+              aria-label="Clear Audio"
+              disabled={isLoadingAccounts} // Disable when loading accounts
+            >
+              <Trash2 size={20} />
+            </Button>
+          </>
+        )}
+
+        <Input
+          type="text"
+          className="flex-1 border rounded-full px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder={isLoadingAccounts ? "Loading accounts..." : "Type a transaction description or command (/audio, /text)..."}
+          value={typedDescription}
+          onChange={(e) => setTypedDescription(e.target.value)}
+          onKeyPress={(e) => {
+            if (e.key === 'Enter' && (typedDescription.trim() || file)) {
+              handleUnifiedSend();
+            }
+          }}
+          disabled={isLoadingAccounts} // Disable when loading accounts
+        />
+        <Button
+          onClick={handleUnifiedSend}
+          disabled={!typedDescription.trim() && !file && !isRecording && !audioBlob || isLoadingAccounts} // Disable if no text, no file, not recording, no audio blob, or loading accounts
+          className="p-2 bg-blue-600 text-white rounded-full hover:bg-blue-700"
+          aria-label="Send Message"
+        >
+          <Send size={20} />
+        </Button>
+      </div>
+    </>
+  );
+};
