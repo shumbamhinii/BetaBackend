@@ -12,9 +12,12 @@ app.use(cors()); // Enable CORS for all routes
 app.use(express.json()); // Enable JSON body parsing
 
 const pool = new Pool({
-  connectionString: 'postgresql://postgres:123qwe@localhost/q_analytix',
+  connectionString:
+    "postgresql://qbeta_db:AWfyl8R0jJLUaZtwKtoOtzX3kfMXhZS8@dpg-d22i2sbe5dus739mklbg-a.oregon-postgres.render.com/qbeta_db",
+  ssl: {
+    rejectUnauthorized: false, // Render requires SSL, but no cert verification needed
+  },
 });
-
 // Test database connection
 pool.connect((err, client, release) => {
     if (err) {
